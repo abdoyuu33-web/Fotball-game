@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Football V1</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%;background:#16823a}
+#ui{position:fixed;inset:0;pointer-events:none;color:white}
+#score{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:28px;font-weight:700;background:#0008;padding:6px 18px;border-radius:14px}
+#hint{position:absolute;top:58px;left:50%;transform:translateX(-50%);font-size:13px;background:#0007;padding:5px 10px;border-radius:10px}
+#controls{position:absolute;bottom:18px;left:18px;right:18px;display:flex;justify-content:space-between;align-items:end}
+.pad{display:grid;grid-template-columns:repeat(3,54px);grid-template-rows:repeat(3,54px);gap:5px;pointer-events:auto}
+.btn,.shoot{border:0;border-radius:50%;background:#ffffffaa;color:#111;font-weight:700;font-size:22px}
+.shoot{width:82px;height:82px;background:#fff;color:#111;pointer-events:auto}
+@media(min-width:800px){.btn{width:60px;height:60px}.pad{grid-template-columns:repeat(3,60px);grid-template-rows:repeat(3,60px)}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+  <div id="score">0 - 0</div>
+  <div id="hint">حرّك اللاعب واضغط تسديد عندما تقترب من الكرة</div>
+  <div id="controls">
+    <div class="pad">
+      <button class="btn" data-k="up" style="grid-column:2">▲</button>
+      <button class="btn" data-k="left" style="grid-column:1;grid-row:2">◀</button>
+      <button class="btn" data-k="down" style="grid-column:2;grid-row:2">▼</button>
+      <button class="btn" data-k="right" style="grid-column:3;grid-row:2">▶</button>
+    </div>
+    <button class="shoot" id="shoot">تسديد</button>
+  </div>
+</div>
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d'),scoreEl=document.getElementById('score');
+const keys={up:false,down:false,left:false,right:false}; let score=[0,0], last=0;
+const player={x:0,y:0,r:20,speed:260}; const ball={x:0,y:0,r:11,vx:0,vy:0};
+const W={w:0,h:0,goal:0};
+
+function resize(){c.width=innerWidth*devicePixelRatio;c.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);W.w=innerWidth;W.h=innerHeight;W.goal=Math.min(150,W.h*.22);resetPositions();}
+addEventListener('resize',resize);
+function resetPositions(){player.x=W.w*.28;player.y=W.h/2;ball.x=W.w*.5;ball.y=W.h/2;ball.vx=ball.vy=0;}
+function field(){
+ ctx.fillStyle='#16823a';ctx.fillRect(0,0,W.w,W.h);
+ ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(18,18,W.w-36,W.h-36);
+ ctx.beginPath();ctx.moveTo(W.w/2,18);ctx.lineTo(W.w/2,W.h-18);ctx.stroke();
+ ctx.beginPath();ctx.arc(W.w/2,W.h/2,Math.min(W.h*.16,90),0,Math.PI*2);ctx.stroke();
+ ctx.fillStyle='#fff';ctx.fillRect(0,W.h/2-W.goal/2,22,W.goal);ctx.fillRect(W.w-22,W.h/2-W.goal/2,22,W.goal);
+}
+function circle(x,y,r,color){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();}
+function update(dt){
+ let dx=(keys.right?1:0)-(keys.left?1:0),dy=(keys.down?1:0)-(keys.up?1:0);
+ const len=Math.hypot(dx,dy)||1; player.x+=dx/len*player.speed*dt;player.y+=dy/len*player.speed*dt;
+ player.x=Math.max(40,Math.min(W.w-40,player.x));player.y=Math.max(40,Math.min(W.h-40,player.y));
+ ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;ball.vx*=Math.pow(.18,dt);ball.vy*=Math.pow(.18,dt);
+ let d=Math.hypot(ball.x-player.x,ball.y-player.y);
+ if(d<player.r+ball.r){let nx=(ball.x-player.x)/(d||1),ny=(ball.y-player.y)/(d||1);ball.x=player.x+nx*(player.r+ball.r);ball.y=player.y+ny*(player.r+ball.r);}
+ if(ball.y<29||ball.y>W.h-29){ball.y=Math.max(29,Math.min(W.h-29,ball.y));ball.vy*=-.75}
+ if(ball.x<29 && Math.abs(ball.y-W.h/2)<W.goal/2){score[1]++;newGoal()} 
+ else if(ball.x>W.w-29 && Math.abs(ball.y-W.h/2)<W.goal/2){score[0]++;newGoal()}
+ else if(ball.x<29||ball.x>W.w-29){ball.x=Math.max(29,Math.min(W.w-29,ball.x));ball.vx*=-.75}
+ scoreEl.textContent=score[0]+' - '+score[1];
+}
+function newGoal(){resetPositions();}
+function shoot(){
+ let dx=ball.x-player.x,dy=ball.y-player.y,d=Math.hypot(dx,dy);
+ if(d<75){dx/=d||1;dy/=d||1;ball.vx=dx*650;ball.vy=dy*650;}
+}
+function draw(){
+ field();circle(player.x,player.y,player.r,'#1565c0');circle(player.x-6,player.y-4,4,'#fff');
+ circle(ball.x,ball.y,ball.r,'#fff');ctx.strokeStyle='#222';ctx.lineWidth=2;ctx.stroke();
+}
+function loop(t){let dt=Math.min(.033,(t-last)/1000||0);last=t;update(dt);draw();requestAnimationFrame(loop)}
+document.querySelectorAll('.btn').forEach(b=>{
+ const k=b.dataset.k; b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true}); 
+ ['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[k]=false}));
+});
+document.getElementById('shoot').addEventListener('pointerdown',e=>{e.preventDefault();shoot()});
+addEventListener('keydown',e=>{if(e.key==='ArrowUp')keys.up=true;if(e.key==='ArrowDown')keys.down=true;if(e.key==='ArrowLeft')keys.left=true;if(e.key==='ArrowRight')keys.right=true;if(e.code==='Space')shoot()});
+addEventListener('keyup',e=>{if(e.key==='ArrowUp')keys.up=false;if(e.key==='ArrowDown')keys.down=false;if(e.key==='ArrowLeft')keys.left=false;if(e.key==='ArrowRight')keys.right=false});
+resize();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
